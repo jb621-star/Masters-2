@@ -1,0 +1,175 @@
+---
+title: "Bayesian Data Analysis"
+author: BIOS719 Generalized Linear Models 
+output: pdf_document
+header-includes:    ## To add latex packages
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options("width"=2000)
+options("digits"=3)
+library(knitr)
+library(graphics)
+library(HDInterval) ## To calculate highest posterior density (HPD) interval
+```
+
+## Bayesian logistic and Poisson regression: Revisit the Beetle data example
+
+```{r}
+#### 7.3.1 Beetle data example 
+## Create the dataset
+beetle <- as.data.frame(cbind( dose=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.861,1.8839),
+                               n=c(59,60,62,56,63,59,62,60),
+                               y=c(6,13,18,28,52,53,61,60)
+                               ))
+## Print the data
+beetle
+```
+
+We will use R2jags package to fit Bayesian models. Before installing the package in R, you need to download and install JAGS to your laptop (\url{https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/}).
+
+We will fit a logistic regression model: $logit(\pi_i) = \beta_0 + \beta_1*Dose_i$
+
+```{r}
+#### Frequentist logistic regression
+fit.logit <- glm(cbind(y, n-y)~dose, family=binomial(link="logit"), data=beetle)
+summary(fit.logit)
+```
+
+```{r}
+library(R2jags)
+```
+
+\newpage
+```{r}
+## JAGS model
+logit.jags <- function(){
+  
+  for(i in 1:N) {
+    r[i] ~ dbin(p[i], n[i])               # Binomial likelihood
+    logit(p[i]) <- beta[1] + beta[2]*x[i] # Logistic regression
+    
+    #r[i] ~ dpois(p[i]*n[i])               # Poisson likelihood
+    #log(p[i]) <- beta[1] + beta[2]*x[i]   # Poisson regression 
+  }
+  
+  # Priors
+  beta[1] ~ dnorm(0, 0.0001)  # Second argument is precision (= 1/variance)
+  beta[2] ~ dnorm(0, 0.0001) 
+  
+  # If you want to allow correlatio between beta1 and beta2...
+  # Set "mean" and "invR" as part of your data
+  #beta[1:2] ~ dmnorm(mean[1:2], invR[1:2,1:2])
+  
+  # Obtain Odds ratio
+  for (i in 1:2) {
+    OR[i] <- exp(beta[i])
+  }
+}
+
+## Prepare for MCMC
+## Specify data
+N <- nrow(beetle)      # number of obs
+r <- beetle$y
+n <- beetle$n
+x <- beetle$dose
+## Data entry
+jdata <- list(N=N,r=r,n=n,x=x)
+
+## Parameters to be saved
+para <- c("beta", "OR")
+
+## Initial values with two chains
+init1 <- list(beta=c(-40,20))
+init2 <- list(beta=c(-60,30))
+init <- list(init1, init2)
+
+## Run JAGS
+Bayes.logit <- jags(data=jdata, inits=init, para,
+                 n.iter=50000, n.burnin=20000, n.chains=2, n.thin=1,
+                 DIC=TRUE, jags.seed=12345, progress.bar="text",
+                 model.file=logit.jags)
+```
+
+\newpage
+```{r}
+## Check results
+print(Bayes.logit)
+plot(Bayes.logit)
+traceplot(Bayes.logit, var=c("beta","OR"), mfrow=c(2,2), ask=FALSE)
+logit.mcmc <- as.mcmc(Bayes.logit)
+summary(logit.mcmc)
+head(logit.mcmc[[1]])   ## MCMC samples from the first chain
+autocorr.plot(logit.mcmc)
+gelman.plot(logit.mcmc)
+```
+
+\newpage
+## Poisson regression
+```{r}
+#### Frequentist Poisson regression
+fit.pois <- glm(y~dose+offset(log(n)), family=poisson(link="log"), data=beetle)
+summary(fit.pois)
+```
+
+```{r}
+## JAGS model
+pois.jags <- function(){
+  
+  for(i in 1:N) {
+    r[i] ~ dpois(p[i]*n[i])               # Poisson likelihood
+    log(p[i]) <- beta[1] + beta[2]*x[i]   # Poisson regression 
+  }
+  
+  # Priors
+  beta[1] ~ dnorm(0, 0.0001)  # Second argument is precision (= 1/variance)
+  beta[2] ~ dnorm(0, 0.0001) 
+  
+  # If you want to allow correlatio between beta1 and beta2...
+  # Set "mean" and "invR" as part of your data
+  #beta[1:2] ~ dmnorm(mean[1:2], invR[1:2,1:2])
+  
+  # Obtain relative rate
+  for (i in 1:2) {
+    RR[i] <- exp(beta[i])
+  }
+}
+
+## Prepare for MCMC
+## Specify data
+N <- nrow(beetle)      # number of obs
+r <- beetle$y
+n <- beetle$n
+x <- beetle$dose
+## Data entry
+jdata <- list(N=N,r=r,n=n,x=x)
+
+## Parameters to be saved
+para <- c("beta", "RR")
+
+## Initial values with two chains
+init1 <- list(beta=c(-20,10))
+init2 <- list(beta=c(-25,5))
+init <- list(init1, init2)
+
+## Run JAGS
+Bayes.pois <- jags(data=jdata, inits=init, para,
+                 n.iter=50000, n.burnin=20000, n.chains=2, n.thin=1,
+                 DIC=TRUE, jags.seed=12345, progress.bar="text",
+                 model.file=pois.jags)
+## Check results
+print(Bayes.pois)
+traceplot(Bayes.pois, var=c("beta","RR"), mfrow=c(2,2), ask=FALSE)
+
+## Run JAGS with thin=10
+## To improve convergence
+Bayes.pois <- jags(data=jdata, inits=init, para,
+                 n.iter=500000, n.burnin=200000, n.chains=2, n.thin=10,
+                 DIC=TRUE, jags.seed=12345, progress.bar="text",
+                 model.file=pois.jags)
+## Check results
+print(Bayes.pois)
+traceplot(Bayes.pois, var=c("beta","RR"), mfrow=c(2,2), ask=FALSE)
+```

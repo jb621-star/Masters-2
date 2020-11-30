@@ -1,0 +1,271 @@
+---
+title: "GLM Inference Example"
+author: BIOS719 Generalized Linear Models 
+output: pdf_document
+header-includes:    ## To add latex packages
+  - \usepackage{amsmath}
+  - \usepackage{bm}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(graphics)
+```
+
+## Deviance for a Poisson model
+
+If the response variables $Y_1, \dotso, Y_N$ are independent and $Y_i {\sim} Poi(\lambda_i)$, the log-likelihood function is
+\[
+l(\bm{\beta}; \bm{y}) = \sum y_i \log \lambda_i - \sum \lambda_i - \sum \log y_i! 
+\]
+
+For the \textbf{saturated model}, the $\lambda_i$'s are all different, so $\bm{\beta} = [\lambda_1, \dotso, \lambda_N]^T$. The MLEs are $\widehat{\lambda}_i = y_i$, so the log-likelihood function for the saturated model is
+\[
+l(\bm{b}_{max}; \bm{y}) = \sum y_i \log y_i - \sum y_i - \sum \log y_i!
+\]
+
+Suppose the \textbf{model of interest} has $p<N$ parameters. The MLE $\bm{b}$ can be used to calculate $\widehat{\lambda}_i$, and, hence, fitted values $\widehat{y}_i = \widehat{\lambda}_i$ because $E(Y_i) = \lambda_i$. Then the log-likelihood in this case is
+\[
+l(\bm{b}; \bm{y}) = \sum y_i \log \widehat{y}_i - \sum \widehat{y}_i - \sum \log y_i!
+\]
+
+Therefore, the deviance is
+\begin{eqnarray} \notag
+D & = & 2[l(\bm{b}_{max}; \bm{y}) - l(\bm{b}; \bm{y})] \\ \notag
+  & = &
+\end{eqnarray}
+
+NOW, suppose that we use a log link function. That is,
+\begin{gather} \notag
+E(Y_i) = \mu_i = \lambda_i \\ \notag
+\mbox{Saturated model: }g(\mu_i) = g(\lambda_i) = log(\lambda_i) = \beta_i \\ \notag
+\mbox{Model of interest: }g(\mu_i) = g(\lambda_i) = log(\lambda_i) = x_i^{T} \bm{\beta}
+\end{gather}
+The MLE of $\lambda_i$ in the saturated model is $y_i$. What is the MLE of $\beta_i$?
+\vspace{1cm}
+
+
+\[
+l(\bm{b}_{max}; \bm{y}) = \sum y_i \log y_i - \sum y_i - \sum \log y_i!
+\]
+In general, 
+\[
+\widehat{y}_i = \widehat{E[Y_i]} = \widehat{\mu}_i = g^{-1}(x_i^T \bm{\beta})
+\]
+Then, what is $\widehat{y}_i$ for the model of interest?
+\vspace{1cm}
+
+
+\begin{eqnarray} \notag
+l(\bm{b}; \bm{y}) & = & \sum y_i \log \widehat{y}_i - \sum \widehat{y}_i - \sum \log y_i! \\ \notag
+                  & = &
+\end{eqnarray}
+
+Then the deviance is...
+
+## Poisson model example (data from Table 4.5 on page 70)
+Table 4.5 shows numbers of cases of AIDS in Australia for successive quarter from 1984 to 1988.
+
+\begin{table}[htp]
+\centering
+\begin{tabular}{lcccc}
+\hline
+Year & 1 & 2 & 3 & 4 \\
+\hline
+1984 & 1 & 6 & 16 & 23 \\
+1985 & 27 & 39 & 31 & 30 \\
+1986 & 43 & 51 & 63 & 70 \\
+1987 & 88 & 97 & 91 & 104 \\
+1988 & 110 & 113 & 149 & 159 \\
+\hline
+\end{tabular}
+\end{table}
+
+We will study the association between $Y_i$, number of cases and $x_i = \log i$, where $i=1, \dotso, 20$ is time period. We will consider three models.
+\begin{eqnarray} \notag
+\mbox{Saturated model: }& g(\lambda) = \log \lambda_i = \beta_i \\ \notag
+\mbox{Model 1: }& \log \lambda_i = \beta \\  \notag
+\mbox{Model 2: }& \log \lambda_i = \beta_1 + \beta_2 x_i 
+\end{eqnarray}
+
+```{r}
+#### Table 4.5 data example 
+## Create the dataset
+d1 <- as.data.frame(cbind( y=c(1,6,16,23,
+                               27,39,31,30,
+                               43,51,63,70,
+                               88,97,91,104,
+                               110,113,149,159),
+                           x = log(1:20)
+                          ))
+## Print the data
+head(d1)
+
+## Fit saturated model
+fit.sat <- glm(y ~ factor(x), data=d1, family = poisson(link="log"), x=T)
+# Design matrix
+dimnames(fit.sat$x)[[2]] <- c("Int",paste("x", 2:20, sep=""))
+fit.sat$x
+# Results
+summary(fit.sat)
+# Fitted value (y_hat)
+fit.sat$fitted.values
+
+## Fit Model 1: log(\lambda_i) = \beta
+fit1 <- glm(y ~ 1, data=d1, family = poisson(link="log"), x=T)
+# Design matrix
+fit1$x
+# Results
+summary(fit1)
+# Fitted value (y_hat)
+fit1$fitted.values
+# 
+exp(4.18281)
+log(mean(d1$y))
+mean(d1$y)
+
+## Fit Model 2: log(\lambda_i) = \beta_1 + \beta_2 * x_i
+fit2 <- glm(y ~ x, data=d1, family = poisson(link="log"), x=T)
+# Design matrix
+fit2$x
+# Results
+summary(fit2)
+# Fitted value (y_hat)
+fit2$fitted.values
+```
+
+Let's compare fitted values.
+
+```{r}
+## Compare fitted values
+cbind(y=d1$y, yhat.sat = fit.sat$fitted.values, 
+      yhat1 = fit1$fitted.values, yhat2 = fit2$fitted.values)
+
+par(pty="s")
+plot(x=d1$y, y=fit.sat$fitted.values, xlab="y", ylab="yhat \n(predicted response)", pch=1)
+abline(a=0, b=1, lty=2, lwd=0.5)  # 45 degree line
+points(x=d1$y, y=fit1$fitted.values, pch=2, col="red")
+points(x=d1$y, y=fit2$fitted.values, pch=5, col="darkgreen")
+legend("topleft", pch=c(1,2,5), col=c("black", "red", "darkgreen"), 
+       legend=c("Saturated model", "Intercept only", "Intercept and slope"))
+```
+
+Now, let's talk about deviance
+```{r}
+## Compare deviance
+data.frame(fit.sat$deviance, fit1$deviance, fit2$deviance)
+```
+Recall
+\[
+D = 2[\sum \log (y_i/\widehat{y}_i) - \sum(y_i - \widehat{y}_i)]
+\]
+```{r}
+## Calculate deviance
+# Model 1
+2*sum( d1$y * log(d1$y / fit1$fitted.values) - (d1$y - fit1$fitted.values) )
+# Model 2
+2*sum( d1$y * log(d1$y / fit2$fitted.values) - (d1$y - fit2$fitted.values) )
+```
+
+We want to compare model fit of Models 1 and 2. We will conduct LRT and use AIC. 
+
+LRT: $\Delta D = D_0 - D_1 {\sim} \chi^2(p-q)$
+
+AIC: $-2 l(\widehat{\bm{\beta}}; \bm{y}) + 2p$
+
+```{r}
+## LRT
+LRT <- fit1$deviance - fit2$deviance
+#p-value
+1-pchisq(LRT, df=1)
+```
+
+
+```{r}
+## AIC from glm
+data.frame(fit.sat$aic, fit1$aic, fit2$aic)
+## Calculate AIC
+# Saturated model
+-2*( sum(d1$y*log(fit.sat$fitted.values)) - sum(fit.sat$fitted.values) 
+     - sum(log(factorial(d1$y)))) + 2*20
+# Model 1
+-2*( sum(d1$y*log(fit1$fitted.values)) - sum(fit1$fitted.values) 
+     - sum(log(factorial(d1$y)))) + 2*1
+# Model 2
+-2*( sum(d1$y*log(fit2$fitted.values)) - sum(fit2$fitted.values) 
+     - sum(log(factorial(d1$y)))) + 2*2
+```
+
+Now, we want to compare Wald, Score, and LRT.
+
+```{r}
+## Wald test
+summary(fit2)
+## Score test
+anova(fit2, test="Rao")
+## LRT
+anova(fit2, test="LRT")
+library(lmtest)
+lrtest(fit1, fit2)
+```
+
+Here are manual functions to run Wald, Score, and LRT test in this Poisson example. 
+
+```{r}
+## Wald test
+f.wald.poisson.log <- function(d,b.null)
+{ # poisson, log link
+  X <- cbind(1,d[,"x"])
+  y <- d[,"y"]
+  fit <- glm(y ~ x, data=d1, family=poisson(link="log"))
+  b <- fit$coefficients
+  eta <- as.vector(X %*% b)
+  EY <- exp(eta)
+  VY <- EY # because Poisson
+  dmu.deta <- exp(eta) 
+  w <- (1/VY) * (dmu.deta^2)
+  information <- t(X) %*% diag(w) %*% X
+  wald <- (b-b.null) * (1/ ( diag( solve(information) ) ) )   * (b-b.null)
+  return(list(b.null=b.null, test=cbind(c(wald=wald, p.value = 1-pchisq(wald,df=1), z=sign(b)*sqrt(wald)))))
+}
+f.wald.poisson.log(d=d1,b.null=c(0,0))
+
+## Score test
+f.score.poisson.log <- function(d,b.x.null)
+{ # poisson, log link
+  X <- cbind(1,d[,"x"])
+  y <- d[,"y"]
+  fit.null <- glm(y ~ 1 + offset(b.x.null*x), data=d, family=poisson(link="log"))
+  b.null <- c(fit.null$coefficients,b.x.null)
+  eta <- as.vector(X %*% b.null)
+  EY <- exp(eta)
+  VY <- EY # because Poisson
+  dmu.deta <- exp(eta)
+  w <- (1/VY) * (dmu.deta^2)
+  deta.dmu <- 1/EY
+  U <- t(X) %*% diag(w) %*% diag(deta.dmu) %*% (y-EY)
+  information <- t(X) %*% diag(w) %*% X
+  score <- t(U) %*% solve(information) %*% U
+  return(list(b.null=b.null, U=U, test=c(score=score, p.value = 1-pchisq(score,df=1))))
+}
+f.score.poisson.log(d=d1,b.x.null=0)
+
+## LRT
+f.LRT.poisson.log <- function(d,b.x.null)
+{ # poisson, log link
+  fit.null <- glm(y ~ 1 + offset(b.x.null*x), data=d, family=poisson(link="log"))
+  b.null <- c(fit.null$coefficients,b.x.null)
+  fit      <- glm(y ~ 1 + x, data=d, family=poisson(link="log"))
+  delta.deviance <- fit.null$deviance - fit$deviance
+  return(list(b.null=b.null, test=c(delta.deviance=delta.deviance, p.value = 1-pchisq(delta.deviance,df=1))))
+}
+f.LRT.poisson.log(d=d1,b.x.null=0)
+```
+
+
+
+
+
+
+

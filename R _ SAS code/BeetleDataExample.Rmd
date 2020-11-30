@@ -1,0 +1,287 @@
+---
+title: "Beetle Data Example"
+author: BIOS719 Generalized Linear Models
+output: pdf_document
+header-includes:    ## To add latex packages
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(graphics)
+```
+
+# Beetle data example
+
+Table 7.2 (page 127) shows numbers of beetles dead after five hours exposure to gaseous carbon disulphide at various concentrations.  
+
+```{r}
+#### 7.3.1 Beetle data example 
+## Create the dataset
+beetle <- as.data.frame(cbind( dose=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.861,1.8839),
+                               n=c(59,60,62,56,63,59,62,60),
+                               y=c(6,13,18,28,52,53,61,60)
+                               ))
+## Print the data
+beetle
+```
+
+# 1. Part I
+
+We fit GLMs $g(\pi_i) = \beta_0 + \beta_1*Dose_i$, where $g(\cdot)$ is the logit, probit, or complementary log-log link function. To use R to fit GLMs to grouped dichotomous data, it is necessary to construct a response matrix with two columns, $y$ and $(n-y)$.
+```{r}
+#### 1. Logistic regression
+fit.logit <- glm(cbind(y, n-y)~dose, family=binomial(link="logit"), data=beetle)
+#### 2. Probit regression
+fit.probit <- glm(cbind(y, n-y)~dose, family=binomial(link="probit"), data=beetle)
+#### 3. Complementary log-log function
+fit.cloglog <- glm(cbind(y, n-y)~dose, family=binomial(link="cloglog"), data=beetle)
+```
+
+## 1.1. Logistic regression
+
+Let's check the results for the logistic regression model.
+```{r}
+summary(fit.logit)
+```
+Now check the estimated variance-covariance matrix for MLEs, $[\Im(\bf{b})]^{-1}$.
+```{r}
+summary(fit.logit)$cov.unscaled
+```
+Compare observed and fitted values.
+```{r}
+cbind(beetle,
+      fitted.y=round(beetle[,"n"]*fit.logit$fitted.values, digits=2),
+      observed.prob=round(beetle[,"y"]/beetle[,"n"], digits=2),
+      fitted.prob=round(fit.logit$fitted.values, digits=2))
+```
+
+## 1.2. Probit regression
+Check the results for the probit regression model
+```{r}
+summary(fit.probit)
+```
+
+## 1.3. Cloglog regression
+Check the results for the complementary log-log function
+```{r}
+summary(fit.cloglog)
+```
+
+## 1.4. Compare three models
+```{r}
+#### Compare estimated coefficients
+summary(fit.logit)$coefficient[1:2,1:2]
+summary(fit.probit)$coefficient[1:2,1:2]
+summary(fit.cloglog)$coefficient[1:2,1:2]
+
+#### Compare residual deviance
+cbind(Dev.logit=fit.logit$deviance, Dev.probit=fit.probit$deviance, Dev.cloglog=fit.cloglog$deviance)
+#### Compare AIC
+cbind(AIC.logit=fit.logit$aic, AIC.probit=fit.probit$aic, AIC.cloglog=fit.cloglog$aic)
+
+#### Compare fitted values
+cbind(beetle,
+      yhat.logit=round(beetle[,"n"]*fit.logit$fitted.values, digits=2),
+      yhat.probit=round(beetle[,"n"]*fit.probit$fitted.values, digits=2),
+      yhat.cloglog=round(beetle[,"n"]*fit.cloglog$fitted.values, digits=2))
+
+```
+
+
+# 2. Part 2
+Again, we fit GLMs $g(\pi_i) = \beta_0 + \beta_1*Dose_i$, where $g(\cdot)$ is the logit, probit, or complementary log-log link function. We discuss how to make inference of a linear combination of parameters and how to interpret them. 
+
+## 2.1. Logistic regression
+$g(\pi_i)= log(\pi_i / (1-\pi_i)) = \textbf{x}_i^T {\bf \beta} = \beta_0 + \beta_1 x_i = \eta_i$
+
+$g^{-1}(\eta_i) = \pi_i = \frac{exp(\textbf{x}_i^T {\bf \beta})}{1 + exp(\textbf{x}_i^T {\bf \beta})} = \frac{1}{1 + exp(-\textbf{x}_i^T {\bf \beta})}$
+
+- A one unit change in $x_i$ leads to a $\beta$ change in log odds ratio.
+- When coparing Pattern 1 $x_i = x_2$ and Pattern 2 $x_i = x_1$, we obtain log odds($\pi_i(x_2)$) - log odds($\pi_i(x_1)$) $= \beta_1 (x_2-x_1)$
+- You can also estimate an odds ratio. 
+- A positive (negative) coefficient means that an increase in the predictor leads to an increase (decrease) in the predicted probability.
+```{r}
+fit.logit$coef
+
+pattern1 <- c(1, 1.81)
+pattern2 <- c(1, 1.80)
+## Linear model for each pattern
+eta1 <- as.vector(fit.logit$coef%*%pattern1)
+eta2 <- as.vector(fit.logit$coef%*%pattern2)
+c(eta1, eta2)
+## Probability of having an outcome for each pattern
+p1 <- 1/(1+exp(-eta1))
+p2 <- 1/(1+exp(-eta2))
+c(p1, p2)
+## Odds
+odds1 <- p1/(1-p1)
+odds2 <- p2/(1-p2)
+c(odds1, odds2)
+## OR
+logit.pattern12 <- odds1/odds2   ## OR associated with 0.01 unit increase in dose
+logit.pattern12
+(exp(fit.logit$coef[2]))^(1/100)
+```
+Let's do another comparison.
+
+```{r}
+pattern3 <- c(1, 1.71)
+pattern4 <- c(1, 1.70)
+## Linear model for each pattern
+eta3 <- as.vector(fit.logit$coef%*%pattern3)
+eta4 <- as.vector(fit.logit$coef%*%pattern4)
+c(eta3, eta4)
+## Probability of having an outcome for each pattern
+p3 <- 1/(1+exp(-eta3))
+p4 <- 1/(1+exp(-eta4))
+c(p3, p4)
+## Odds
+odds3 <- p3/(1-p3)
+odds4 <- p4/(1-p4)
+c(odds3, odds4)
+## OR
+logit.pattern34 <- odds3/odds4  ## OR associated with 0.01 unit increase in dose
+logit.pattern34
+```
+## 2.2. Probit regression
+$g(\pi_i)= \Phi^{-1}(\pi_i) = \textbf{x}_i^T {\bf \beta} = \beta_0 + \beta_1 x_i = \eta_i$
+
+$g^{-1}(\eta_i) = \pi_i = \Phi(\textbf{x}_i^T {\bf \beta})$
+
+- Higher values of $\textbf{x}_i^T {\bf \beta}$ mean that the event is more likely to happen.
+- A one unit change in $x_i$ leads to a $\beta$ change in the z-score of Y.
+- When coparing Pattern 1 $x_i = x_2$ and Pattern 2 $x_i = x_1$, we obtain $\Phi^{-1}(\pi_i(x_2)) - \Phi^{-1}(\pi_i(x_1)) = \beta_1 (x_2-x_1)$
+- A positive (negative) coefficient means that an increase in the predictor leads to an increase (decrease) in the predicted probability.
+```{r}
+fit.probit$coef
+
+pattern1 <- c(1, 1.81)
+pattern2 <- c(1, 1.80)
+## Linear model for each pattern
+eta1 <- as.vector(fit.probit$coef%*%pattern1)
+eta2 <- as.vector(fit.probit$coef%*%pattern2)
+c(eta1, eta2)
+## Probability of having an outcome for each pattern
+p1 <- pnorm(eta1, 0, 1)  ## CDF of N(0, 1)
+p2 <- pnorm(eta2, 0, 1)
+c(p1, p2)
+## Odds
+odds1 <- p1/(1-p1)
+odds2 <- p2/(1-p2)
+c(odds1, odds2)
+## OR
+probit.pattern12 <- odds1/odds2   
+probit.pattern12
+```
+```{r}
+pattern3 <- c(1, 1.71)
+pattern4 <- c(1, 1.70)
+## Linear model for each pattern
+eta3 <- as.vector(fit.probit$coef%*%pattern3)
+eta4 <- as.vector(fit.probit$coef%*%pattern4)
+c(eta3, eta4)
+## Probability of having an outcome for each pattern
+p3 <- pnorm(eta3, 0, 1)  ## CDF of N(0, 1)
+p4 <- pnorm(eta4, 0, 1)
+c(p3, p4)
+## Odds
+odds3 <- p3/(1-p3)
+odds4 <- p4/(1-p4)
+c(odds3, odds4)
+## OR
+probit.pattern34 <- odds3/odds4   
+probit.pattern34
+```
+
+## 2.3. Cloglog link function
+$g(\pi_i)= log[-log(1-\pi_i)] = \textbf{x}_i^T {\bf \beta} = \eta_i$ 
+
+$g^{-1}(\eta_i) = \pi_i = 1-exp[-exp(\textbf{x}_i^T {\bf \beta})]$
+
+- When coparing Pattern 1 $x_i = x_2$ and Pattern 2 $x_i = x_1$, we obtain $log\{\log(1-\pi(x_2))\} - log\{\log(1-\pi(x_1))\} = \beta_1 (x_2-x_1)$
+- Then, we obtain $1-\pi(x_2) = \{ 1-\pi(x_1) \}^{exp\{ \beta_1(x_2 - x_1)\}}$
+- If $x_2 - x_1 = 1$, then $1-\pi(x_2) = \{ 1-\pi(x_1) \}^{e^{\beta_1}}$.
+- That is, the complement probability at $x_2$ equals the complement probability at $x_1$ raised to the power $exp(\beta_1)$.
+- Now, let's directly calculate odds ratios.
+
+```{r}
+fit.cloglog$coef
+
+pattern1 <- c(1, 1.81)
+pattern2 <- c(1, 1.80)
+## Linear model for each pattern
+eta1 <- as.vector(fit.cloglog$coef%*%pattern1)
+eta2 <- as.vector(fit.cloglog$coef%*%pattern2)
+c(eta1, eta2)
+## Probability of having an outcome for each pattern
+p1 <- 1-exp(-exp(eta1))
+p2 <- 1-exp(-exp(eta2))
+c(p1, p2)
+## Odds
+odds1 <- p1/(1-p1)
+odds2 <- p2/(1-p2)
+c(odds1, odds2)
+## OR
+cloglog.pattern12 <- odds1/odds2   ## OR associated with 0.01 unit increase in dose
+cloglog.pattern12
+```
+```{r}
+pattern3 <- c(1, 1.71)
+pattern4 <- c(1, 1.70)
+## Linear model for each pattern
+eta3 <- as.vector(fit.cloglog$coef%*%pattern3)
+eta4 <- as.vector(fit.cloglog$coef%*%pattern4)
+c(eta3, eta4)
+## Probability of having an outcome for each pattern
+p3 <- 1-exp(-exp(eta3))
+p4 <- 1-exp(-exp(eta4))
+c(p3, p4)
+## Odds
+odds3 <- p3/(1-p3)
+odds4 <- p4/(1-p4)
+c(odds3, odds4)
+## OR
+cloglog.pattern34 <- odds3/odds4   
+cloglog.pattern34
+```
+
+## 2.4. Compare three models
+
+```{r}
+#### Summary
+summary(fit.logit)$coefficient
+summary(fit.probit)$coefficient
+summary(fit.cloglog)$coefficient
+#### ORs
+c(logit.pattern12, logit.pattern34)
+c(probit.pattern12, probit.pattern34)
+c(cloglog.pattern12, cloglog.pattern34)
+```
+
+We can draw fitted lines of the three models
+
+```{r}
+plot(beetle$dose, beetle$y/beetle$n, pch=19,ylab="Proportion of death", xlab="Log dosage")
+lines(beetle$dose, fitted(fit.logit))
+lines(beetle$dose, fitted(fit.probit), lty=2)
+lines(beetle$dose, fitted(fit.cloglog), lty=3)
+legend("topleft", c("Logit", "Probit", "Cloglog"), lty=c(1,2,3))
+
+```
+
+In addition, we can plot the fitted cloglog model with model based confidence intervals (i.e., pointwise confidence bands) for probability of death.
+
+```{r}
+fv <- predict(fit.cloglog, se.fit=TRUE)   # cloglog scale
+U <- fv$fit + 1.96*fv$se.fit
+L <- fv$fit - 1.96*fv$se.fit
+plot(beetle$dose, beetle$y/beetle$n, pch=19,ylab="Estimated P(death)", xlab="Log dosage")
+lines(beetle$dose, fitted(fit.cloglog))   # Fitted probability
+lines(beetle$dose, 1-exp(-exp(U)), lty=3)
+lines(beetle$dose, 1-exp(-exp(L)), lty=3)
+```
+
+
+
